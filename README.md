@@ -7,7 +7,7 @@
 
 ShopFloor Copilot is an edge-deployable, AI-augmented manufacturing assistant built for precision CNC machining and plastics injection molding facilities. Line operators submit part photos and natural-language inquiries to receive instant defect assessments, tolerance compliance checks against official factory Standard Operating Procedures (SOPs), and automated ERP traveler routing.
 
-The system incorporates **OpenCV classical computer vision**, **optical character recognition (OCR)**, **TF-IDF vector retrieval (RAG)**, an **explicit ReAct agent reasoning loop**, and an **online Epsilon-Greedy Contextual Bandit** that dynamically learns the optimal RAG retrieval depth ($top\_k$) under real worker feedback and latency pressure. Every critical decision enforces an **immutable audit trail** and a **mandatory human approval gate** before mutating factory ERP state.
+The system incorporates **OpenCV classical computer vision**, **optical character recognition (OCR)**, **TF-IDF vector retrieval (RAG)**, an **explicit ReAct agent reasoning loop**, and an **online Epsilon-Greedy Contextual Bandit** that dynamically learns the optimal RAG retrieval depth (`top_k`) under real worker feedback and latency pressure. Every critical decision enforces an **immutable audit trail** and a **mandatory human approval gate** before mutating factory ERP state.
 
 ---
 
@@ -15,36 +15,36 @@ The system incorporates **OpenCV classical computer vision**, **optical characte
 
 ```mermaid
 flowchart TD
-    Worker([Line Operator / Mobile Terminal]) -->|1. POST /inspect\n(query, part image, WO-ID)| API[FastAPI Gateway\napp/main.py]
+    Worker(["Line Operator / Mobile Terminal"]) -->|"1. POST /inspect<br/>(query, part image, WO-ID)"| API["FastAPI Gateway<br/>app/main.py"]
     
-    subgraph Agentic Reasoning Layer [ReAct Decision Loop: app/agent.py]
-        API --> ReAct[ReAct Controller]
+    subgraph Agentic_Layer ["ReAct Decision Loop (app/agent.py)"]
+        API --> ReAct["ReAct Controller"]
         
-        ReAct -->|Conditional on Image| Tool1[Tool 1: cv_ocr_inspect\nOpenCV + Pytesseract / EasyOCR]
-        Tool1 -->|Defect: crack / scratch / deviation\nExtracted: WO-100X| ReAct
+        ReAct -->|"Conditional on Image"| Tool1["Tool 1: cv_ocr_inspect<br/>OpenCV + Pytesseract / EasyOCR"]
+        Tool1 -->|"Defect: crack / scratch / deviation<br/>Extracted: WO-100X"| ReAct
         
-        ReAct -->|If WO-ID Available| Tool2[Tool 2: check_work_order_status\nFactory ERP Traveler Lookup]
-        Tool2 -->|Batch Specs & Spindle Telemetry| ReAct
+        ReAct -->|"If WO-ID Available"| Tool2["Tool 2: check_work_order_status<br/>Factory ERP Traveler Lookup"]
+        Tool2 -->|"Batch Specs & Spindle Telemetry"| ReAct
         
-        ReAct -->|Query Bandit for top_k| RL[Epsilon-Greedy Bandit\napp/rl_bandit.py]
-        RL -->|Action: top_k in [1, 3, 5]| ReAct
+        ReAct -->|"Query Bandit for top_k"| RL["Epsilon-Greedy Bandit<br/>app/rl_bandit.py"]
+        RL -->|"Action: top_k in (1, 3, 5)"| ReAct
         
-        ReAct -->|Retrieve Rules| Tool3[Tool 3: retrieve_sop_knowledge\nTF-IDF In-Memory Vector Store]
-        Tool3 -->|Grounded SOP Chunks| ReAct
+        ReAct -->|"Retrieve Rules"| Tool3["Tool 3: retrieve_sop_knowledge<br/>TF-IDF In-Memory Vector Store"]
+        Tool3 -->|"Grounded SOP Chunks"| ReAct
         
-        ReAct -->|If Critical Defect| Tool4[Tool 4: propose_escalation_or_scrap\nHuman Checkpoint Gate]
-        Tool4 -->|Status: PROPOSED_PENDING_HUMAN_APPROVAL| ReAct
+        ReAct -->|"If Critical Defect"| Tool4["Tool 4: propose_escalation_or_scrap<br/>Human Checkpoint Gate"]
+        Tool4 -->|"Status: PROPOSED_PENDING_HUMAN_APPROVAL"| ReAct
         
-        ReAct -->|Grounded Synthesis| LLM[Ollama Client / Fallback\napp/rag_engine.py]
+        ReAct -->|"Grounded Synthesis"| LLM["Ollama Client / Fallback<br/>app/rag_engine.py"]
     end
     
-    LLM -->|Final Response + Trace| API
-    API -->|InspectResponse JSON| Worker
-    API -.->|Append Immutable Line| Audit[(Audit Log\ndata/audit_log.jsonl)]
+    LLM -->|"Final Response + Trace"| API
+    API -->|"InspectResponse JSON"| Worker
+    API -.->|"Append Immutable Line"| Audit[("Audit Log<br/>data/audit_log.jsonl")]
     
-    Worker -->|2. POST /feedback\n(transaction_id, score: 0 or 1)| API
-    API -->|Reward = score*10 - latency| RL
-    RL -->|Update Q-Table & Counts| State[(data/bandit_state.json)]
+    Worker -->|"2. POST /feedback<br/>(transaction_id, score: 0 or 1)"| API
+    API -->|"Reward = score * 10 - latency"| RL
+    RL -->|"Update Q-Table & Counts"| State[("Bandit State<br/>data/bandit_state.json")]
 ```
 
 ---
@@ -98,8 +98,9 @@ ShopFloor-Copilot/
 
 ### 2. Setup Virtual Environment
 ```bash
-# Clone or navigate to workspace
-cd /Users/vaibh/Desktop/ShopFloor-Copilot
+# Clone repository and navigate to workspace
+git clone https://github.com/vaibhavanand1/shopfloor-copilot-assignment.git
+cd shopfloor-copilot-assignment
 
 # Create and activate virtual environment
 python3 -m venv .venv
@@ -332,8 +333,9 @@ To balance latency pressure and retrieval accuracy across different defect types
 - **State Space (5 states):** `no_defect`, `surface_scratch`, `crack`, `dimensional_deviation`, `no_image_supplied`.
 - **Action Space (Optimizing RAG top-K):** `1` (ultra-fast, single chunk), `3` (balanced), `5` (comprehensive).
 - **Reward Formula:**
-  $$\text{Reward} = (\text{feedback\_score} \times 10.0) - \text{execution\_latency\_seconds}$$
-- **Update Rule:** Incremental sample average update:
+  $$\text{Reward} = (\text{Score}_{\text{feedback}} \times 10.0) - \text{Latency}_{\text{seconds}}$$
+  *(where $\text{Score}_{\text{feedback}} \in \{0, 1\}$ is operator feedback, and $\text{Latency}_{\text{seconds}}$ is total execution time)*
+- **Update Rule (Incremental Sample-Average):**
   $$Q(s, a) \leftarrow Q(s, a) + \frac{1}{N(s, a)} \left[ \text{Reward} - Q(s, a) \right]$$
 
 ### 25-Iteration Simulation & Policy Shift Results
@@ -370,12 +372,13 @@ Below is the empirical Q-table and visit count shift logged after 25 realistic s
 
 ---
 
-## Forward-Deployed Engineer (FDE) Rationale
+## Forward-Deployed Engineer (FDE) Rationale & Walkthrough
 
-See [DECISIONS.md](file:///Users/vaibh/Desktop/ShopFloor-Copilot/DECISIONS.md) for in-depth answers to all Section G prompts:
-1. **Vector RAG vs. Long-Context Prompting** for dynamic shop-floor corpora.
-2. **ReAct Agent Justification** and identifying the non-negotiable non-agentic ERP gate.
-3. **Classical Computer Vision vs. Fine-Tuned Models** in precision manufacturing.
-4. **Model Tiering & Cascading** as the primary cost lever for scaling from 1 to 10 plants.
-5. **Shop-Floor Automation Bias Governance** and physical RFID/PLC hardware interlocks.
-6. **Contextual Bandit Action-Axis Justification** (why `rag_top_k` was chosen over OCR engine).
+- **Section G Architectural Decisions:** See [DECISIONS.md](DECISIONS.md) for in-depth answers to all production prompt questions:
+  1. Vector RAG vs. Long-Context Prompting for dynamic shop-floor corpora.
+  2. ReAct Agent Justification and the non-negotiable non-agentic ERP gate.
+  3. Classical Computer Vision vs. Fine-Tuned Models in precision manufacturing.
+  4. Model Tiering & Cascading as the primary cost lever for scaling from 1 to 10 plants.
+  5. Shop-Floor Automation Bias Governance and physical RFID/PLC hardware interlocks.
+  6. Contextual Bandit Action-Axis Justification (why `rag_top_k` was chosen over OCR engine).
+- **Technical Video Interview Prep:** See [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) for the complete, line-by-line master code walkthrough across all 6 core modules.
