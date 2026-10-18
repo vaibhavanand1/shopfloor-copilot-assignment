@@ -195,8 +195,8 @@ def update(self, state: str, action: int, reward: float):
 ```
 - **Mathematical Form:** $Q_{k+1} = Q_k + \frac{1}{N} (R - Q_k)$.
 - **Convergence Dynamics:**
-  - `no_defect`: $top\_k=1$ satisfies tolerance rule in $0.9\text{s}$, giving $\text{Reward} = (1 \times 10) - 0.9 = 9.1$. $top\_k=5$ takes $2.6\text{s}$ ($\text{Reward} = 7.4$). The bandit shifts to $top\_k=1$.
-  - `crack`: $top\_k=1$ only retrieves tolerance limits and misses escalation contact (Marcus Vance ext. 4402), earning $\text{feedback\_score} = 0$ ($\text{Reward} = -1.5$). $top\_k=3$ retrieves both chunks, earning $\text{feedback\_score} = 1$ ($\text{Reward} = 6.6$). The bandit shifts to $top\_k=3$.
+  - `no_defect`: `top_k=1` satisfies tolerance rule in 0.9s, giving `Reward = (1 * 10) - 0.9 = 9.1`. `top_k=5` takes 2.6s (`Reward = 7.4`). The bandit shifts to `top_k=1`.
+  - `crack`: `top_k=1` only retrieves tolerance limits and misses escalation contact (Marcus Vance ext. 4402), earning `feedback_score = 0` (`Reward = -1.5`). `top_k=3` retrieves both chunks, earning `feedback_score = 1` (`Reward = 6.6`). The bandit shifts to `top_k=3`.
 
 ---
 
@@ -242,7 +242,7 @@ trace.append(TraceStep(
 ### 5.2 Reinforcement Feedback Loop `POST /feedback` (`app/main.py`: lines 151–189)
 1. Looks up `transaction_id` in `data/audit_log.jsonl`.
 2. Extracts state (`defect_category`), action (`rag_top_k`), and `execution_latency_seconds`.
-3. Computes $\text{reward} = (\text{feedback\_score} \times 10.0) - \text{latency}$.
+3. Computes `reward = (feedback_score * 10.0) - latency`.
 4. Invokes `bandit.update(state, action, reward)`.
 5. Logs feedback event to audit log and returns updated Q-values.
 

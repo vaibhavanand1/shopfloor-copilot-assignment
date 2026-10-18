@@ -310,15 +310,15 @@ The vision layer runs **100% locally on open-source libraries** with sub-15ms la
 
 1. **Outer Geometry & Dimensional Deviation:**
    - Converts image to grayscale and applies Otsu/binary thresholding to segment the workpiece contour.
-   - Computes **Solidity** ($\text{Contour Area} / \text{Bounding Box Area}$) and aspect ratio.
-   - Nominal square machined billets exhibit solidity $\ge 0.98$. If a corner is chipped, sheared, or flange warped, solidity drops below $0.96$, deterministically classifying the part as `dimensional_deviation`.
+   - Computes **Solidity** (`Contour Area / Bounding Box Area`) and aspect ratio.
+   - Nominal square machined billets exhibit solidity >= 0.98. If a corner is chipped, sheared, or flange warped, solidity drops below 0.96, deterministically classifying the part as `dimensional_deviation`.
 2. **Surface Defect Classification:**
    - Isolates the central machining surface ROI, avoiding stamping pads and mounting bores.
-   - Applies Gaussian blur ($3 \times 3$) and Canny edge detection ($50, 150$).
+   - Applies Gaussian blur (3x3) and Canny edge detection (50, 150).
    - Computes edge pixel density, contour counts, and maximum contour arc length:
-     - `roi_edge_pixels < 50` $\rightarrow$ `no_defect` (Confidence: 0.98)
-     - `50 <= roi_edge_pixels < 450` $\rightarrow$ `surface_scratch` (Linear contour, salvageable at Station B-4)
-     - `roi_edge_pixels >= 450` $\rightarrow$ `crack` (Branching fracture, zero-tolerance scrap)
+     - `roi_edge_pixels < 50` → `no_defect` (Confidence: 0.98)
+     - `50 <= roi_edge_pixels < 450` → `surface_scratch` (Linear contour, salvageable at Station B-4)
+     - `roi_edge_pixels >= 450` → `crack` (Branching fracture, zero-tolerance scrap)
 3. **Stamped Work Order OCR Extraction:**
    - Crops the stamping pad area and runs `pytesseract` with regex pattern `r"WO-\d+"`.
    - Checks `shutil.which("tesseract")` and includes fallback routines for EasyOCR, ensuring the pipeline never crashes if an OCR engine binary is unconfigured.
@@ -328,7 +328,7 @@ The vision layer runs **100% locally on open-source libraries** with sub-15ms la
 ## Adaptive Optimization Loop (Reinforcement Learning)
 
 ### Epsilon-Greedy Contextual Bandit
-To balance latency pressure and retrieval accuracy across different defect types, the system implements an online Epsilon-Greedy Contextual Bandit ($\epsilon = 0.20$):
+To balance latency pressure and retrieval accuracy across different defect types, the system implements an online Epsilon-Greedy Contextual Bandit (ε = 0.20):
 
 - **State Space (5 states):** `no_defect`, `surface_scratch`, `crack`, `dimensional_deviation`, `no_image_supplied`.
 - **Action Space (Optimizing RAG top-K):** `1` (ultra-fast, single chunk), `3` (balanced), `5` (comprehensive).
@@ -356,8 +356,8 @@ Below is the empirical Q-table and visit count shift logged after 25 realistic s
 | `no_image_supplied` | **0.00** | **0.00** | **0.00** | [0, 0, 0] | **`top_k=1`** | Standard baseline fallback |
 
 **Key Takeaways:**
-1. **Simple inspections (`no_defect`) converge to `top_k=1`:** A single tolerance chunk answers the query; minimizing token latency from 2.5s down to 0.9s directly maximizes net reward ($Q = 8.98$).
-2. **Complex incidents (`crack`) converge to `top_k=3`:** When an operator asks how to handle a crack, `top_k=1` retrieves only the tolerance chunk and omits the shift escalation contact (Quality Lead Marcus Vance ext. 4402). The worker rates it unhelpful ($\text{feedback\_score} = 0$), inflicting a negative reward penalty. In contrast, `top_k=3` captures both chunks, yielding positive feedback and highest net value ($Q = 6.57$).
+1. **Simple inspections (`no_defect`) converge to `top_k=1`:** A single tolerance chunk answers the query; minimizing token latency from 2.5s down to 0.9s directly maximizes net reward (Q = 8.98).
+2. **Complex incidents (`crack`) converge to `top_k=3`:** When an operator asks how to handle a crack, `top_k=1` retrieves only the tolerance chunk and omits the shift escalation contact (Quality Lead Marcus Vance ext. 4402). The worker rates it unhelpful (`feedback_score = 0`), inflicting a negative reward penalty. In contrast, `top_k=3` captures both chunks, yielding positive feedback and highest net value (Q = 6.57).
 
 ---
 
