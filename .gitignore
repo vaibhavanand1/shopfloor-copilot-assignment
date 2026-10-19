@@ -30,3 +30,10 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local notes, walkthroughs & recordings
+CODE_WALKTHROUGH.*
+VIDEO_SCRIPT.*
+*.webp
+*.webm
+.tempmediaStorage/

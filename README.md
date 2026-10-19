@@ -15,36 +15,32 @@ The system incorporates **OpenCV classical computer vision**, **optical characte
 
 ```mermaid
 flowchart TD
-    Worker(["Line Operator / Mobile Terminal"]) -->|"1. POST /inspect<br/>(query, part image, WO-ID)"| API["FastAPI Gateway<br/>app/main.py"]
-    
-    subgraph Agentic_Layer ["ReAct Decision Loop (app/agent.py)"]
-        API --> ReAct["ReAct Controller"]
-        
-        ReAct -->|"Conditional on Image"| Tool1["Tool 1: cv_ocr_inspect<br/>OpenCV + Pytesseract / EasyOCR"]
-        Tool1 -->|"Defect: crack / scratch / deviation<br/>Extracted: WO-100X"| ReAct
-        
-        ReAct -->|"If WO-ID Available"| Tool2["Tool 2: check_work_order_status<br/>Factory ERP Traveler Lookup"]
-        Tool2 -->|"Batch Specs & Spindle Telemetry"| ReAct
-        
-        ReAct -->|"Query Bandit for top_k"| RL["Epsilon-Greedy Bandit<br/>app/rl_bandit.py"]
-        RL -->|"Action: top_k in (1, 3, 5)"| ReAct
-        
-        ReAct -->|"Retrieve Rules"| Tool3["Tool 3: retrieve_sop_knowledge<br/>TF-IDF In-Memory Vector Store"]
-        Tool3 -->|"Grounded SOP Chunks"| ReAct
-        
-        ReAct -->|"If Critical Defect"| Tool4["Tool 4: propose_escalation_or_scrap<br/>Human Checkpoint Gate"]
-        Tool4 -->|"Status: PROPOSED_PENDING_HUMAN_APPROVAL"| ReAct
-        
-        ReAct -->|"Grounded Synthesis"| LLM["Ollama Client / Fallback<br/>app/rag_engine.py"]
-    end
-    
-    LLM -->|"Final Response + Trace"| API
-    API -->|"InspectResponse JSON"| Worker
-    API -.->|"Append Immutable Line"| Audit[("Audit Log<br/>data/audit_log.jsonl")]
-    
-    Worker -->|"2. POST /feedback<br/>(transaction_id, score: 0 or 1)"| API
-    API -->|"Reward = score * 10 - latency"| RL
-    RL -->|"Update Q-Table & Counts"| State[("Bandit State<br/>data/bandit_state.json")]
+    User(["Line Worker / Supervisor"])
+
+    %% Left branch: Inspection & Agentic Reasoning
+    User -->|"POST /inspect<br/>(Multipart or JSON)"| InspectEndpoint["POST /inspect<br/>(Multipart or JSON)"]
+    InspectEndpoint -->|"query, image,<br/>work_order_id"| ReAct["ReAct Agent Loop<br/>(app/agent.py)"]
+
+    ReAct -->|"1. If image"| Tool1["Tool 1: Vision & OCR<br/>(vision_ocr.py)"]
+    ReAct -->|"2. If WO-ID"| Tool2["Tool 2: ERP Lookup<br/>(MOCK_ERP)"]
+    ReAct -->|"3. Fetch top_k SOPs"| Tool3["Tool 3: Vector RAG<br/>(rag_engine.py)"]
+    ReAct -->|"4. If crack / scrap"| Tool4["Tool 4: Human Gate<br/>(PROPOSED_PENDING)"]
+
+    Tool1 --> Ollama["Ollama LLM (3.5s Timeout) + Fallback"]
+    Tool2 --> Ollama
+    Tool3 --> Ollama
+    Tool4 --> Ollama
+
+    Ollama -->|"Saves Trace &<br/>Returns Answer"| Audit[("Audit Log<br/>(audit_log.jsonl)")]
+
+    %% Middle-Right branch: Reinforcement Feedback
+    User -->|"POST /feedback<br/>(Score: 0 or 1)"| FeedbackEndpoint["POST /feedback<br/>(Score: 0 or 1)"]
+    FeedbackEndpoint -->|"Updates Q-Table<br/>(R = 10*s - latency)"| RL["RL Bandit<br/>(rl_bandit.py)"]
+    RL -.->|"Picks top_k (1, 3, 5)"| Tool3
+
+    %% Far-Right branch: Audit Log Replay
+    User -->|"GET /transactions/{id}"| ReplayEndpoint["GET /transactions/{id}"]
+    ReplayEndpoint -->|"Replays Trace"| Audit
 ```
 
 ---
@@ -372,13 +368,12 @@ Below is the empirical Q-table and visit count shift logged after 25 realistic s
 
 ---
 
-## Forward-Deployed Engineer (FDE) Rationale & Walkthrough
+## Architectural Rationale & System Design
 
-- **Section G Architectural Decisions:** See [DECISIONS.md](DECISIONS.md) for in-depth answers to all production prompt questions:
+- **Engineering Decisions & Production Trade-offs:** Detailed architectural rationale is documented in [DECISIONS.md](DECISIONS.md):
   1. Vector RAG vs. Long-Context Prompting for dynamic shop-floor corpora.
-  2. ReAct Agent Justification and the non-negotiable non-agentic ERP gate.
+  2. ReAct Agent Reasoning Loop and non-negotiable deterministic ERP governance.
   3. Classical Computer Vision vs. Fine-Tuned Models in precision manufacturing.
   4. Model Tiering & Cascading as the primary cost lever for scaling from 1 to 10 plants.
   5. Shop-Floor Automation Bias Governance and physical RFID/PLC hardware interlocks.
   6. Contextual Bandit Action-Axis Justification (why `rag_top_k` was chosen over OCR engine).
-- **Technical Video Interview Prep:** See [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) for the complete, line-by-line master code walkthrough across all 6 core modules.
