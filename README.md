@@ -376,5 +376,4 @@ Below is the empirical Q-table and visit count shift logged after 25 realistic s
   3. Classical Computer Vision vs. Fine-Tuned Models in precision manufacturing.
   4. Model Tiering & Cascading as the primary cost lever for scaling from 1 to 10 plants.
   5. Shop-Floor Automation Bias Governance and physical RFID/PLC hardware interlocks.
-  6. Handling Concurrency & Race Conditions in Production (Redis & PostgreSQL).
-  7. Contextual Bandit Action-Axis Justification (why `rag_top_k` was chosen over OCR engine).
+  6. Contextual Bandit Action-Axis Justification (why `rag_top_k` was chosen over OCR engine).

@@ -29,10 +29,6 @@ A major shop-floor risk is Automation Bias (or 'ghost scrapping')—blind trust 
 
 To close this in production, we would install fixed camera and lighting mounts to standardize image capture, and electronic locks on quarantine bins that only open when a supervisor scans their RFID badge.
 
-#### 6. How do we handle concurrency and race conditions in production when multiple stations submit at the same millisecond? (Redis & PostgreSQL)
-Right now, our prototype writes to local `.jsonl` and `.json` files, which would face file locks and lost-update race conditions if multiple stations wrote at the exact same millisecond. In production:
-- We would replace `audit_log.jsonl` with **PostgreSQL**, using row-level locking (`SELECT ... FOR UPDATE`) for feedback updates and atomic conditional `UPDATE` statements so two supervisors cannot double-approve the same scrap action.
-- And we would move `bandit_state.json` to **Redis**, using atomic hash counters (`HINCRBYFLOAT`) or distributed locks so concurrent feedback updates never overwrite each other.
 
 ---
 
